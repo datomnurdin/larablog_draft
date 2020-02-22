@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Post;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Input;
 
 class PostsController extends Controller
 {
@@ -108,9 +110,20 @@ class PostsController extends Controller
             'body' => 'required'
         ]);
 
+        if($request->hasFile('cover_image')){
+            $filenameWithExt = $request->file('cover_image')->getClientOriginalName();
+            $filename = pathinfo($filenameWithExt, PATHINFO_FILENAME );
+            $extension = $request->file('cover_image')->getClientOriginalExtension();
+            $filenameToStore = $filename.'_'.time().'.'.$extension;
+            $path = $request->file('cover_image')->storeAs('public/cover_images', $filenameToStore);
+        }
+
         $post = Post::find($id);
         $post->title = $request->input('title');
         $post->body = $request->input('body');
+        if($request->hasFile('cover_image')){
+            $post->cover_image = $filenameToStore;
+        }
         $post->save();
 
         return redirect('/posts')->with('success','Post Successfuly Updated!!!');
@@ -130,8 +143,25 @@ class PostsController extends Controller
             return redirect('/posts')->with('error', 'Unauthorized Page!!!');
         }
 
+        if($post->cover_image != 'no_image.jpg'){
+            Storage::delete('public/cover_images/'.$post->cover_image);
+        }
+
         $post->delete();
 
         return redirect('/posts')->with('success', 'Post Successfully Deleted!!!');
+    }
+
+    public function search(){
+        $q = Input::get('q');
+        $posts = Post::where('title','LIKE','%'.$q.'%')->
+            orWhere('body','LIKE','%'.$q.'%')->get();
+        
+        if(count($posts) > 0){
+            return view('posts.search')->withDetails($posts)->withQuery($q);
+        } else{
+            return view('posts.search')->withMessage('No Posts found. Please try again.');
+        }
+        
     }
 }
